@@ -3,13 +3,8 @@ import gspread
 import google.auth
 import requests
 
-def get_best_model():
-    """Gemini 1.5 Flash の最新モデル名を返す"""
-    # 404エラーを避けるため、固定の最新モデル名を使用します
-    return "gemini-1.5-flash"
-
 def main():
-    print("--- 🚀 プログラム実行開始 ---")
+    print("--- 🚀 プログラム実行開始 (2026.01 Edition) ---")
     
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_key:
@@ -51,10 +46,12 @@ def main():
     print(f"📝 テーマ: {topic}")
 
     # 5. Gemini API で台本と動画プロンプトを生成
-    print("🧠 Gemini に台本とプロンプトを依頼中...")
-    model = get_best_model()
-    # URLを最新の v1beta から v1 に、かつ正しいパス形式に修正
-    gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
+    print("🧠 Gemini 2.0 Flash に台本とプロンプトを依頼中...")
+    
+    # 【2026年最新指定】
+    # モデル名を最新の 2.0-flash に、APIバージョンを v1 に固定
+    model_id = "gemini-2.0-flash"
+    gen_url = f"https://generativelanguage.googleapis.com/v1/models/{model_id}:generateContent?key={gemini_key}"
     
     prompt = (
         f"テーマ「{topic}」について、TikTok用の30秒程度の面白い台本を作成してください。"
@@ -66,9 +63,9 @@ def main():
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         res = requests.post(gen_url, json=payload)
         
-        # 404などのエラーが出た場合に詳細を表示
+        # エラー発生時の詳細ログ
         if res.status_code != 200:
-            print(f"❌ APIエラー詳細: {res.text}")
+            print(f"❌ APIエラー詳細 (Code: {res.status_code}): {res.text}")
             res.raise_for_status()
 
         data = res.json()
