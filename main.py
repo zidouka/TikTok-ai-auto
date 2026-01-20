@@ -2,16 +2,17 @@ import os
 import gspread
 import google.auth
 import requests
+import time
 
 def main():
-    print("--- 🚀 プログラム実行開始 (2026.01 Edition) ---")
+    print("--- 🚀 プログラム実行開始 (2026 安定版) ---")
     
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_key:
         print("❌ エラー: GEMINI_API_KEY が設定されていません。")
         return
 
-    # 2. Google Cloud 認証
+    # 1. Google Cloud 認証 (Workload Identity 連携)
     print("🔐 Google Cloud 認証を試行中...")
     try:
         creds, _ = google.auth.default(
@@ -23,34 +24,38 @@ def main():
         print(f"❌ 認証失敗: {e}")
         return
 
-    # 3. スプレッドシートを開く
+    # 2. スプレッドシートを開く
     print("📅 スプレッドシート『TikTok管理シートAI』を開いています...")
     try:
         sh = gc.open("TikTok管理シートAI").sheet1
         print("✅ シート接続成功")
     except Exception as e:
-        print(f"❌ シートが見つかりません: {e}")
+        print(f"❌ シートが見つかりません。共有設定や名前を確認してください: {e}")
         return
 
-    # 4. 未処理行の探索
+    # 3. 未処理行の探索
     print("🔍 『未処理』と書かれた行を探しています...")
     try:
         cell = sh.find("未処理")
         row_num = cell.row
         print(f"📌 行番号 {row_num} に未処理データを発見しました。")
     except:
-        print("✅ 処理待ちの行が見つかりませんでした。")
+        print("✅ 処理待ちの行（『未処理』）は見つかりませんでした。")
         return
 
+    # A列からネタを取得
     topic = sh.cell(row_num, 1).value 
+    if not topic:
+        print(f"⚠️ 行 {row_num} のA列（ネタ）が空です。")
+        sh.update_cell(row_num, 2, "エラー: ネタなし")
+        return
+
     print(f"📝 テーマ: {topic}")
 
-    # 5. Gemini API で台本と動画プロンプトを生成
-    print("🧠 Gemini 2.0 Flash に台本とプロンプトを依頼中...")
-    
-    # 【2026年最新指定】
-    # モデル名を最新の 2.0-flash に、APIバージョンを v1 に固定
-    model_id = "gemini-2.0-flash"
+    # 4. Gemini API で台本と動画プロンプトを生成
+    # 無料枠で最も安定している gemini-1.5-flash を使用
+    print("🧠 Gemini 1.5 Flash に依頼中...")
+    model_id = "gemini-1.5-flash"
     gen_url = f"https://generativelanguage.googleapis.com/v1/models/{model_id}:generateContent?key={gemini_key}"
     
     prompt = (
@@ -63,32 +68,34 @@ def main():
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         res = requests.post(gen_url, json=payload)
         
-        # エラー発生時の詳細ログ
-        if res.status_code != 200:
-            print(f"❌ APIエラー詳細 (Code: {res.status_code}): {res.text}")
-            res.raise_for_status()
+        # 429エラー(制限)が出た場合の対策
+        if res.status_code == 429:
+            print("⏳ API制限中。30秒待機して再試行します...")
+            time.sleep(30)
+            res = requests.post(gen_url, json=payload)
 
+        res.raise_for_status()
         data = res.json()
         full_text = data['candidates'][0]['content']['parts'][0]['text']
         
         if "###" in full_text:
             script, video_prompt = full_text.split("###")
         else:
-            script, video_prompt = full_text, "Cinematic video about " + topic
+            script, video_prompt = full_text, "A high quality cinematic video of " + topic
             
         script = script.strip()
         video_prompt = video_prompt.strip()
 
-        # 6. スプレッドシートへ書き込み
+        # 5. スプレッドシートへ書き込み
         print("💾 スプレッドシートに結果を書き込み中...")
-        sh.update_cell(row_num, 2, "プロンプト完了")
-        sh.update_cell(row_num, 3, script)
-        sh.update_cell(row_num, 4, video_prompt)
+        sh.update_cell(row_num, 2, "プロンプト完了") # B列
+        sh.update_cell(row_num, 3, script)           # C列
+        sh.update_cell(row_num, 4, video_prompt)      # D列
         
         print(f"✨ 全ての処理が正常に完了しました！ (行: {row_num})")
 
     except Exception as e:
-        print(f"❌ 処理エラー: {e}")
+        print(f"❌ Gemini API 処理エラー: {e}")
         sh.update_cell(row_num, 2, "APIエラー")
 
 if __name__ == "__main__":
