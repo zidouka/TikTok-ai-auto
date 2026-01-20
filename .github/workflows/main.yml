@@ -1,7 +1,7 @@
 name: AI Video Prompt Generation
 
 on:
-  workflow_dispatch: # 手動実行用
+  workflow_dispatch:
 
 jobs:
   run-script:
@@ -13,10 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Google Cloudへの認証（Workload Identity連携）
       - id: 'auth'
         uses: 'google-github-actions/auth@v2'
         with:
+          # ここは以前のプロジェクトと同じでOK
           workload_identity_provider: 'projects/966552533765/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
           service_account: 'TikTok-auto@tiktok-auto-poster-484903.iam.gserviceaccount.com'
 
@@ -25,12 +25,12 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 必要なライブラリのインストール（gspread, google-auth, requestsのみでOK）
+      # ここが「整合性」の部分：requirements.txt の中身をインストールする
       - name: Install dependencies
         run: |
-          pip install gspread google-auth requests
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      # Pythonスクリプトの実行
       - name: Run Python script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
