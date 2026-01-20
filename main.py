@@ -7,7 +7,7 @@ def main():
     # 1. 認証 (Workload Identity)
     creds, _ = google.auth.default(scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
     gc = gspread.authorize(creds)
-    sh = gc.open("TikTok動画生成管理シート").sheet1
+    sh = gc.open("TikTok管理シートAI").sheet1
 
     # 2. 未処理行の取得
     try:
