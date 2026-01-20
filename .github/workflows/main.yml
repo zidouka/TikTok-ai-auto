@@ -1,7 +1,7 @@
-name: TikTok Auto Generation
+name: AI Video Prompt Generation
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 手動実行用
 
 jobs:
   run-script:
@@ -13,6 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Google Cloudへの認証（Workload Identity連携）
       - id: 'auth'
         uses: 'google-github-actions/auth@v2'
         with:
@@ -24,30 +25,13 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install ImageMagick
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y imagemagick
-          # セキュリティ制限の解除
-          sudo sed -i 's/policy domain="path" rights="none" pattern="@\*"/policy domain="path" rights="read|write" pattern="@\*"/g' /etc/ImageMagick-6/policy.xml
-          # リソース制限（メモリ・サイズ）の解除
-          sudo sed -i 's/policy domain="resource" name="width" value="16KP"/policy domain="resource" name="width" value="128KP"/g' /etc/ImageMagick-6/policy.xml
-          sudo sed -i 's/policy domain="resource" name="height" value="16KP"/policy domain="resource" name="height" value="128KP"/g' /etc/ImageMagick-6/policy.xml
-          sudo sed -i 's/policy domain="resource" name="area" value="128MB"/policy domain="resource" name="area" value="2GB"/g' /etc/ImageMagick-6/policy.xml
-          sudo sed -i 's/policy domain="resource" name="memory" value="256MiB"/policy domain="resource" name="memory" value="2GiB"/g' /etc/ImageMagick-6/policy.xml
-
+      # 必要なライブラリのインストール（gspread, google-auth, requestsのみでOK）
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install gspread google-auth requests
 
+      # Pythonスクリプトの実行
       - name: Run Python script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: python main.py
-
-      - name: Upload Video Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tiktok-videos
-          path: outputs/
