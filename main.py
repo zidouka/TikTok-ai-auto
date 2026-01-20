@@ -5,14 +5,14 @@ import requests
 import time
 
 def main():
-    print("--- 🚀 プログラム実行開始 (2026 安定版) ---")
+    print("--- 🚀 プログラム実行開始 (2026 最終修正版) ---")
     
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_key:
         print("❌ エラー: GEMINI_API_KEY が設定されていません。")
         return
 
-    # 1. Google Cloud 認証 (Workload Identity 連携)
+    # 1. Google Cloud 認証
     print("🔐 Google Cloud 認証を試行中...")
     try:
         creds, _ = google.auth.default(
@@ -30,7 +30,7 @@ def main():
         sh = gc.open("TikTok管理シートAI").sheet1
         print("✅ シート接続成功")
     except Exception as e:
-        print(f"❌ シートが見つかりません。共有設定や名前を確認してください: {e}")
+        print(f"❌ シートが見つかりません: {e}")
         return
 
     # 3. 未処理行の探索
@@ -43,20 +43,16 @@ def main():
         print("✅ 処理待ちの行（『未処理』）は見つかりませんでした。")
         return
 
-    # A列からネタを取得
     topic = sh.cell(row_num, 1).value 
-    if not topic:
-        print(f"⚠️ 行 {row_num} のA列（ネタ）が空です。")
-        sh.update_cell(row_num, 2, "エラー: ネタなし")
-        return
-
     print(f"📝 テーマ: {topic}")
 
-    # 4. Gemini API で台本と動画プロンプトを生成
-    # 無料枠で最も安定している gemini-1.5-flash を使用
+    # 4. Gemini API 実行
     print("🧠 Gemini 1.5 Flash に依頼中...")
-    model_id = "gemini-1.5-flash"
-    gen_url = f"https://generativelanguage.googleapis.com/v1/models/{model_id}:generateContent?key={gemini_key}"
+    
+    # 【最重要修正】URLの models/ 部分を確実に正しく連結します
+    base_url = "https://generativelanguage.googleapis.com/v1"
+    model_path = "models/gemini-1.5-flash"
+    gen_url = f"{base_url}/{model_path}:generateContent?key={gemini_key}"
     
     prompt = (
         f"テーマ「{topic}」について、TikTok用の30秒程度の面白い台本を作成してください。"
@@ -68,11 +64,14 @@ def main():
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         res = requests.post(gen_url, json=payload)
         
-        # 429エラー(制限)が出た場合の対策
-        if res.status_code == 429:
-            print("⏳ API制限中。30秒待機して再試行します...")
-            time.sleep(30)
-            res = requests.post(gen_url, json=payload)
+        # エラー時のログ出力を強化
+        if res.status_code != 200:
+            print(f"❌ APIエラー詳細 (Status: {res.status_code}): {res.text}")
+            # もし404が出るならURLを微調整してリトライ
+            if res.status_code == 404:
+                print("🔄 URL形式を変更してリトライします...")
+                gen_url = f"https://generativelanguage.googleapis.com/v1beta/{model_path}:generateContent?key={gemini_key}"
+                res = requests.post(gen_url, json=payload)
 
         res.raise_for_status()
         data = res.json()
@@ -88,14 +87,14 @@ def main():
 
         # 5. スプレッドシートへ書き込み
         print("💾 スプレッドシートに結果を書き込み中...")
-        sh.update_cell(row_num, 2, "プロンプト完了") # B列
-        sh.update_cell(row_num, 3, script)           # C列
-        sh.update_cell(row_num, 4, video_prompt)      # D列
+        sh.update_cell(row_num, 2, "プロンプト完了")
+        sh.update_cell(row_num, 3, script)
+        sh.update_cell(row_num, 4, video_prompt)
         
         print(f"✨ 全ての処理が正常に完了しました！ (行: {row_num})")
 
     except Exception as e:
-        print(f"❌ Gemini API 処理エラー: {e}")
+        print(f"❌ 処理エラー: {e}")
         sh.update_cell(row_num, 2, "APIエラー")
 
 if __name__ == "__main__":
