@@ -49,7 +49,6 @@ def main():
     # 4. 未処理行の探索 (B列の「未処理」を検索)
     print("🔍 『未処理』と書かれた行を探しています...")
     try:
-        # シート全体から「未処理」という文字列を検索
         cell = sh.find("未処理")
         row_num = cell.row
         print(f"📌 行番号 {row_num} に未処理データを発見しました。")
@@ -80,4 +79,30 @@ def main():
     try:
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         res = requests.post(gen_url, json=payload)
-        res.raise_for_status()
+        res.raise_for_status() # ここでエラーチェック
+        
+        data = res.json()
+        full_text = data['candidates'][0]['content']['parts'][0]['text']
+        
+        if "###" in full_text:
+            script, video_prompt = full_text.split("###")
+        else:
+            script, video_prompt = full_text, "Cinematic video about " + topic
+            
+        script = script.strip()
+        video_prompt = video_prompt.strip()
+
+        # 6. スプレッドシートへ書き込み
+        print("💾 スプレッドシートに結果を書き込み中...")
+        sh.update_cell(row_num, 2, "プロンプト完了") # B列
+        sh.update_cell(row_num, 3, script)           # C列
+        sh.update_cell(row_num, 4, video_prompt)      # D列
+        
+        print(f"✨ 全ての処理が正常に完了しました！ (行: {row_num})")
+
+    except Exception as e:
+        print(f"❌ Gemini API 処理エラー: {e}")
+        sh.update_cell(row_num, 2, "APIエラー")
+
+if __name__ == "__main__":
+    main()
